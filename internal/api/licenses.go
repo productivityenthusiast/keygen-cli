@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 )
 
 func (c *Client) ListLicenses(params map[string]string) ([]License, error) {
@@ -176,6 +177,41 @@ func (c *Client) SuspendLicense(id string) (*License, error) {
 
 func (c *Client) ReinstateLicense(id string) (*License, error) {
 	data, err := c.doRequest("POST", "/licenses/"+id+"/actions/reinstate", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var doc JSONAPIDocument
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return nil, fmt.Errorf("parsing response: %w", err)
+	}
+
+	var res JSONAPIResource
+	if err := json.Unmarshal(doc.Data, &res); err != nil {
+		return nil, fmt.Errorf("parsing license: %w", err)
+	}
+
+	license := parseLicense(res)
+	return &license, nil
+}
+
+func (c *Client) UpdateLicenseMetadata(id string, metadata map[string]interface{}) (*License, error) {
+	body := map[string]interface{}{
+		"data": map[string]interface{}{
+			"type": "licenses",
+			"id":   id,
+			"attributes": map[string]interface{}{
+				"metadata": metadata,
+			},
+		},
+	}
+
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling request: %w", err)
+	}
+
+	data, err := c.doRequest("PATCH", "/licenses/"+id, strings.NewReader(string(bodyBytes)))
 	if err != nil {
 		return nil, err
 	}

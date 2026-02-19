@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 )
 
 func (c *Client) ListUsers(params map[string]string) ([]User, error) {
@@ -95,4 +96,37 @@ func (c *Client) GetUserLicenses(userID string) ([]License, error) {
 	}
 
 	return licenses, nil
+}
+
+func (c *Client) UpdateUser(id string, attrs map[string]interface{}) (*User, error) {
+	body := map[string]interface{}{
+		"data": map[string]interface{}{
+			"type": "users",
+			"id":   id,
+			"attributes": attrs,
+		},
+	}
+
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling request: %w", err)
+	}
+
+	data, err := c.doRequest("PATCH", "/users/"+id, strings.NewReader(string(bodyBytes)))
+	if err != nil {
+		return nil, err
+	}
+
+	var doc JSONAPIDocument
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return nil, fmt.Errorf("parsing response: %w", err)
+	}
+
+	var res JSONAPIResource
+	if err := json.Unmarshal(doc.Data, &res); err != nil {
+		return nil, fmt.Errorf("parsing user: %w", err)
+	}
+
+	user := parseUser(res)
+	return &user, nil
 }

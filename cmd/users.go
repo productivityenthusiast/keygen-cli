@@ -183,8 +183,98 @@ var usersStatusCmd = &cobra.Command{
 	},
 }
 
+var usersUpdateCmd = &cobra.Command{
+	Use:   "update [user-id-or-email]",
+	Short: "Update user information (email, name, password)",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		cfg := loadConfig()
+		client, err := auth.ResolveClient(cfg)
+		if err != nil {
+			output.Error(err.Error())
+			return
+		}
+
+		identifier := args[0]
+		var userID string
+
+		// Resolve user ID from email if needed
+		if strings.Contains(identifier, "@") {
+			u, err := client.FindUserByEmail(identifier)
+			if err != nil {
+				output.Error(err.Error())
+				return
+			}
+			userID = u.ID
+		} else {
+			userID = identifier
+		}
+
+		// Build attributes to update
+		attrs := make(map[string]interface{})
+		changed := false
+
+		if cmd.Flags().Changed("email") {
+			v, _ := cmd.Flags().GetString("email")
+			attrs["email"] = v
+			changed = true
+		}
+		if cmd.Flags().Changed("first-name") {
+			v, _ := cmd.Flags().GetString("first-name")
+			attrs["firstName"] = v
+			changed = true
+		}
+		if cmd.Flags().Changed("last-name") {
+			v, _ := cmd.Flags().GetString("last-name")
+			attrs["lastName"] = v
+			changed = true
+		}
+		if cmd.Flags().Changed("password") {
+			v, _ := cmd.Flags().GetString("password")
+			attrs["password"] = v
+			changed = true
+		}
+
+		if !changed {
+			output.Error("no update flags provided. Use --email, --first-name, --last-name, or --password")
+			return
+		}
+
+		updated, err := client.UpdateUser(userID, attrs)
+		if err != nil {
+			output.Error(err.Error())
+			return
+		}
+
+		result := map[string]interface{}{
+			"id":         updated.ID,
+			"email":      updated.Email,
+			"first_name": updated.FirstName,
+			"last_name":  updated.LastName,
+			"role":       updated.Role,
+			"status":     updated.Status,
+			"updated":    updated.Updated,
+		}
+
+		f := getFormat()
+		if f == "table" || f == "csv" {
+			headers := []string{"ID", "EMAIL", "FIRST_NAME", "LAST_NAME", "ROLE", "STATUS"}
+			rows := [][]string{{updated.ID, updated.Email, updated.FirstName, updated.LastName, updated.Role, updated.Status}}
+			output.FormatTable(f, headers, rows)
+		} else {
+			output.Success(result)
+		}
+	},
+}
+
 func init() {
+	usersUpdateCmd.Flags().String("email", "", "New email address")
+	usersUpdateCmd.Flags().String("first-name", "", "New first name")
+	usersUpdateCmd.Flags().String("last-name", "", "New last name")
+	usersUpdateCmd.Flags().String("password", "", "New password")
+
 	usersCmd.AddCommand(usersShowCmd)
 	usersCmd.AddCommand(usersStatusCmd)
+	usersCmd.AddCommand(usersUpdateCmd)
 	rootCmd.AddCommand(usersCmd)
 }

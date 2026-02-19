@@ -249,6 +249,88 @@ var licensesComponentsCmd = &cobra.Command{
 	},
 }
 
+var licensesUpdateCmd = &cobra.Command{
+	Use:   "update [license-id]",
+	Short: "Update license metadata (maxDevices, maxPrinters, maxServers)",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		cfg := loadConfig()
+		client, err := auth.ResolveClient(cfg)
+		if err != nil {
+			output.Error(err.Error())
+			return
+		}
+
+		licenseID := args[0]
+
+		// Get current license to show before state
+		oldLicense, err := client.GetLicense(licenseID)
+		if err != nil {
+			output.Error("failed to get license: " + err.Error())
+			return
+		}
+
+		// Build metadata update from flags
+		metadata := make(map[string]interface{})
+
+		// Preserve existing metadata
+		if oldLicense.Metadata != nil {
+			for k, v := range oldLicense.Metadata {
+				metadata[k] = v
+			}
+		}
+
+		// Override with provided flags
+		changed := false
+		if cmd.Flags().Changed("max-devices") {
+			v, _ := cmd.Flags().GetInt("max-devices")
+			metadata["maxDevices"] = v
+			changed = true
+		}
+		if cmd.Flags().Changed("max-printers") {
+			v, _ := cmd.Flags().GetInt("max-printers")
+			metadata["maxPrinters"] = v
+			changed = true
+		}
+		if cmd.Flags().Changed("max-servers") {
+			v, _ := cmd.Flags().GetInt("max-servers")
+			metadata["maxServers"] = v
+			changed = true
+		}
+
+		if !changed {
+			output.Error("no update flags provided. Use --max-devices, --max-printers, or --max-servers")
+			return
+		}
+
+		updated, err := client.UpdateLicenseMetadata(licenseID, metadata)
+		if err != nil {
+			output.Error(err.Error())
+			return
+		}
+
+		result := map[string]interface{}{
+			"license_id": updated.ID,
+			"key":        updated.Key,
+			"name":       updated.Name,
+			"status":     updated.Status,
+			"metadata":   updated.Metadata,
+		}
+
+		f := getFormat()
+		if f == "table" || f == "csv" {
+			maxD := fmt.Sprintf("%v", updated.Metadata["maxDevices"])
+			maxP := fmt.Sprintf("%v", updated.Metadata["maxPrinters"])
+			maxS := fmt.Sprintf("%v", updated.Metadata["maxServers"])
+			headers := []string{"LICENSE_ID", "KEY", "NAME", "MAX_DEVICES", "MAX_PRINTERS", "MAX_SERVERS"}
+			rows := [][]string{{updated.ID, updated.Key, updated.Name, maxD, maxP, maxS}}
+			output.FormatTable(f, headers, rows)
+		} else {
+			output.Success(result)
+		}
+	},
+}
+
 func init() {
 	licensesListCmd.Flags().String("user", "", "Filter by user ID")
 	licensesListCmd.Flags().String("product", "", "Filter by product ID")
@@ -257,10 +339,15 @@ func init() {
 	licensesListCmd.Flags().Int("limit", 10, "Results per page")
 	licensesListCmd.Flags().Int("page", 1, "Page number")
 
+	licensesUpdateCmd.Flags().Int("max-devices", 0, "Maximum number of devices")
+	licensesUpdateCmd.Flags().Int("max-printers", 0, "Maximum number of printers")
+	licensesUpdateCmd.Flags().Int("max-servers", 0, "Maximum number of servers")
+
 	licensesCmd.AddCommand(licensesListCmd)
 	licensesCmd.AddCommand(licensesShowCmd)
 	licensesCmd.AddCommand(licensesStatusCmd)
 	licensesCmd.AddCommand(licensesRenewCmd)
 	licensesCmd.AddCommand(licensesComponentsCmd)
+	licensesCmd.AddCommand(licensesUpdateCmd)
 	rootCmd.AddCommand(licensesCmd)
 }
