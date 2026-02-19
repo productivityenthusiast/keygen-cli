@@ -125,14 +125,14 @@ var licensesStatusCmd = &cobra.Command{
 		}
 
 		result := map[string]interface{}{
-			"license_id":      args[0],
-			"valid":           validation.Valid,
-			"status":          "",
-			"detail":          validation.Detail,
-			"code":            validation.Code,
-			"machines":        machineCount,
-			"components":      componentCount,
-			"days_remaining":  int(daysRemaining),
+			"license_id":     args[0],
+			"valid":          validation.Valid,
+			"status":         "",
+			"detail":         validation.Detail,
+			"code":           validation.Code,
+			"machines":       machineCount,
+			"components":     componentCount,
+			"days_remaining": int(daysRemaining),
 		}
 
 		if license != nil {

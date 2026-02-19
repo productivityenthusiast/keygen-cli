@@ -8,22 +8,22 @@ import (
 // JSON:API envelope types
 
 type JSONAPIDocument struct {
-	Data     json.RawMessage `json:"data"`
-	Included []JSONAPIResource `json:"included,omitempty"`
+	Data     json.RawMessage        `json:"data"`
+	Included []JSONAPIResource      `json:"included,omitempty"`
 	Meta     map[string]interface{} `json:"meta,omitempty"`
 	Links    map[string]interface{} `json:"links,omitempty"`
 }
 
 type JSONAPIResource struct {
-	ID            string                 `json:"id"`
-	Type          string                 `json:"type"`
-	Attributes    map[string]interface{} `json:"attributes"`
+	ID            string                  `json:"id"`
+	Type          string                  `json:"type"`
+	Attributes    map[string]interface{}  `json:"attributes"`
 	Relationships map[string]Relationship `json:"relationships,omitempty"`
-	Links         map[string]interface{} `json:"links,omitempty"`
+	Links         map[string]interface{}  `json:"links,omitempty"`
 }
 
 type Relationship struct {
-	Data  json.RawMessage `json:"data,omitempty"`
+	Data  json.RawMessage        `json:"data,omitempty"`
 	Links map[string]interface{} `json:"links,omitempty"`
 }
 
@@ -84,12 +84,12 @@ type User struct {
 }
 
 type Token struct {
-	ID        string `json:"id"`
-	Kind      string `json:"kind"`
-	Token     string `json:"token"`
-	Expiry    string `json:"expiry"`
-	Created   string `json:"created"`
-	BearerID  string `json:"bearer_id,omitempty"`
+	ID         string `json:"id"`
+	Kind       string `json:"kind"`
+	Token      string `json:"token"`
+	Expiry     string `json:"expiry"`
+	Created    string `json:"created"`
+	BearerID   string `json:"bearer_id,omitempty"`
 	BearerType string `json:"bearer_type,omitempty"`
 }
 

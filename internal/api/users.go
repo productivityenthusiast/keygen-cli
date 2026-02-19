@@ -101,8 +101,8 @@ func (c *Client) GetUserLicenses(userID string) ([]License, error) {
 func (c *Client) UpdateUser(id string, attrs map[string]interface{}) (*User, error) {
 	body := map[string]interface{}{
 		"data": map[string]interface{}{
-			"type": "users",
-			"id":   id,
+			"type":       "users",
+			"id":         id,
 			"attributes": attrs,
 		},
 	}

@@ -30,10 +30,10 @@ var configShowCmd = &cobra.Command{
 		}
 
 		output.Success(map[string]interface{}{
-			"account_id": cfg.AccountID,
-			"base_url":   cfg.BaseURL,
-			"token":      maskedToken,
-			"email":      cfg.Email,
+			"account_id":   cfg.AccountID,
+			"base_url":     cfg.BaseURL,
+			"token":        maskedToken,
+			"email":        cfg.Email,
 			"has_password": cfg.Password != "",
 			"token_expiry": cfg.TokenExp,
 		})
