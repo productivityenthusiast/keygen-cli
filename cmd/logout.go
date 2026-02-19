@@ -1,24 +1,31 @@
 package cmd
 
 import (
-	"github.com/productivityenthusiast/keygen-cli/internal/config"
+	"fmt"
+
 	"github.com/productivityenthusiast/keygen-cli/internal/output"
 	"github.com/spf13/cobra"
 )
 
 var logoutCmd = &cobra.Command{
 	Use:   "logout",
-	Short: "Clear saved authentication",
+	Short: "Clear saved authentication for the active profile",
+	Long: `Clear saved authentication for the active profile.
+
+Use --profile to logout from a specific profile:
+  keygen logout --profile prod`,
 	Run: func(cmd *cobra.Command, args []string) {
-		cfg := config.Load()
+		cfg := loadConfig()
 		if err := cfg.Clear(); err != nil {
 			output.Success(map[string]string{
 				"message": "No saved config to clear",
+				"profile": cfg.ProfileName,
 			})
 			return
 		}
 		output.Success(map[string]string{
-			"message": "Logged out — saved token removed",
+			"message": fmt.Sprintf("Logged out — profile %q removed", cfg.ProfileName),
+			"profile": cfg.ProfileName,
 		})
 	},
 }

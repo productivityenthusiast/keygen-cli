@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/productivityenthusiast/keygen-cli/internal/config"
 	"github.com/productivityenthusiast/keygen-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -16,9 +15,9 @@ var configCmd = &cobra.Command{
 
 var configShowCmd = &cobra.Command{
 	Use:   "show",
-	Short: "Show current configuration",
+	Short: "Show current configuration for the active profile",
 	Run: func(cmd *cobra.Command, args []string) {
-		cfg := config.Load()
+		cfg := loadConfig()
 
 		maskedToken := ""
 		if cfg.Token != "" {
@@ -30,6 +29,7 @@ var configShowCmd = &cobra.Command{
 		}
 
 		output.Success(map[string]interface{}{
+			"profile":      cfg.ProfileName,
 			"account_id":   cfg.AccountID,
 			"base_url":     cfg.BaseURL,
 			"token":        maskedToken,
@@ -42,14 +42,15 @@ var configShowCmd = &cobra.Command{
 
 var configClearCmd = &cobra.Command{
 	Use:   "clear",
-	Short: "Clear saved configuration",
+	Short: "Clear saved configuration for the active profile",
 	Run: func(cmd *cobra.Command, args []string) {
-		cfg := config.Load()
+		cfg := loadConfig()
 		if err := cfg.Clear(); err != nil {
 			fmt.Printf("Note: %v\n", err)
 		}
 		output.Success(map[string]string{
-			"message": "Configuration cleared",
+			"message": fmt.Sprintf("Configuration for profile %q cleared", cfg.ProfileName),
+			"profile": cfg.ProfileName,
 		})
 	},
 }

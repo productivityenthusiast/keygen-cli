@@ -9,7 +9,11 @@ import (
 var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Authenticate with Keygen",
-	Long:  `Authenticate using a token or email/password credentials.`,
+	Long: `Authenticate using a token or email/password credentials.
+
+Use --profile to login to a specific profile:
+  keygen login token --token mytoken --profile prod
+  keygen login password --email admin@example.com --password secret --profile testing`,
 }
 
 var loginTokenCmd = &cobra.Command{
@@ -47,6 +51,7 @@ var loginTokenCmd = &cobra.Command{
 
 		output.Success(map[string]interface{}{
 			"message":    "Login successful",
+			"profile":    cfg.ProfileName,
 			"account_id": cfg.AccountID,
 			"base_url":   cfg.BaseURL,
 		})
@@ -95,6 +100,7 @@ var loginPasswordCmd = &cobra.Command{
 
 		output.Success(map[string]interface{}{
 			"message":    "Login successful",
+			"profile":    cfg.ProfileName,
 			"token_id":   token.ID,
 			"expiry":     token.Expiry,
 			"account_id": cfg.AccountID,

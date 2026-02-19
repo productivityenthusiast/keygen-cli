@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/productivityenthusiast/keygen-cli/internal/api"
 	"github.com/productivityenthusiast/keygen-cli/internal/output"
 	"github.com/spf13/cobra"
@@ -8,12 +10,12 @@ import (
 
 var whoamiCmd = &cobra.Command{
 	Use:   "whoami",
-	Short: "Show current auth context",
+	Short: "Show current auth context and active profile",
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := loadConfig()
 
 		if cfg.Token == "" {
-			output.Error("not logged in (no token configured)")
+			output.Error(fmt.Sprintf("not logged in on profile %q (no token configured)", cfg.ProfileName))
 			return
 		}
 
@@ -21,6 +23,7 @@ var whoamiCmd = &cobra.Command{
 		_, err := client.ValidateToken()
 
 		output.Success(map[string]interface{}{
+			"profile":     cfg.ProfileName,
 			"account_id":  cfg.AccountID,
 			"base_url":    cfg.BaseURL,
 			"auth_method": "token",

@@ -9,14 +9,15 @@ import (
 )
 
 var (
-	cfgFile   string
-	format    string
-	quiet     bool
-	verbose   bool
-	envFile   string
-	accountID string
-	baseURL   string
-	token     string
+	cfgFile     string
+	format      string
+	quiet       bool
+	verbose     bool
+	envFile     string
+	accountID   string
+	baseURL     string
+	token       string
+	profileName string
 
 	Version = "dev"
 )
@@ -26,6 +27,9 @@ var rootCmd = &cobra.Command{
 	Short: "Keygen CLI - License management from the command line",
 	Long: `keygen-cli is a command line tool for managing Keygen licenses,
 machines, components, and users. Designed for use in scripts and by LLMs.
+
+Supports multiple profiles (like AWS CLI). Use --profile to target a
+specific environment (e.g. prod, testing). See 'keygen profile --help'.
 
 All output is JSON by default. Use --format table or --format csv for alternatives.`,
 	Version: Version,
@@ -43,6 +47,7 @@ func SetVersion(v string) {
 }
 
 func init() {
+	rootCmd.PersistentFlags().StringVar(&profileName, "profile", "", "Named profile to use (default: the default profile)")
 	rootCmd.PersistentFlags().StringVar(&format, "format", "json", "Output format: json, table, csv")
 	rootCmd.PersistentFlags().BoolVar(&quiet, "quiet", false, "Suppress non-essential output")
 	rootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "Show verbose output")
@@ -53,7 +58,7 @@ func init() {
 }
 
 func loadConfig() *config.Config {
-	cfg := config.Load()
+	cfg := config.LoadProfile(profileName)
 
 	// CLI flags override everything
 	if accountID != "" {
