@@ -220,6 +220,24 @@ func GetProfile(name string) (*Config, error) {
 	return &cfg, nil
 }
 
+// RenameProfile renames oldName to newName, preserving all data and default status.
+func RenameProfile(oldName, newName string) error {
+	pc := loadProfiles()
+	p, ok := pc.Profiles[oldName]
+	if !ok {
+		return fmt.Errorf("profile %q not found", oldName)
+	}
+	if _, exists := pc.Profiles[newName]; exists {
+		return fmt.Errorf("profile %q already exists", newName)
+	}
+	pc.Profiles[newName] = p
+	delete(pc.Profiles, oldName)
+	if pc.DefaultProfile == oldName {
+		pc.DefaultProfile = newName
+	}
+	return saveProfiles(pc)
+}
+
 // SetDefaultProfile sets which profile is used when --profile is not specified.
 func SetDefaultProfile(name string) error {
 	pc := loadProfiles()

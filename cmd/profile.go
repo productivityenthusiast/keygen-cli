@@ -290,6 +290,27 @@ Examples:
 	},
 }
 
+var profileRenameCmd = &cobra.Command{
+	Use:   "rename [old-name] [new-name]",
+	Short: "Rename a profile",
+	Args:  cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		oldName := args[0]
+		newName := args[1]
+
+		if err := config.RenameProfile(oldName, newName); err != nil {
+			output.Error(err.Error())
+			return
+		}
+
+		output.Success(map[string]interface{}{
+			"message":  fmt.Sprintf("Profile %q renamed to %q", oldName, newName),
+			"old_name": oldName,
+			"new_name": newName,
+		})
+	},
+}
+
 func maskToken(t string) string {
 	if t == "" {
 		return ""
@@ -319,5 +340,6 @@ func init() {
 	profileCmd.AddCommand(profileDeleteCmd)
 	profileCmd.AddCommand(profileShowCmd)
 	profileCmd.AddCommand(profileUseCmd)
+	profileCmd.AddCommand(profileRenameCmd)
 	rootCmd.AddCommand(profileCmd)
 }
