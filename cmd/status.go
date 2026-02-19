@@ -16,7 +16,19 @@ var statusCmd = &cobra.Command{
 	Short: "Show account summary (licenses, users, products, components)",
 	Long: `Display a high-level summary of the Keygen account:
 total licenses, users, products, and per-license component breakdowns
-(devices, printers, servers based on license metadata).`,
+(devices, printers, servers based on license metadata).
+
+Use --user to scope to a single user's licenses.
+Use --fields to choose which columns to display (comma-separated).
+
+Available fields:
+  key, name, status, days, owner, machines, devices, printers, servers
+
+Examples:
+  keygen status
+  keygen status --user admin@example.com
+  keygen status --fields status,devices,printers,servers --format table
+  keygen status --user admin@example.com --fields key,status,days`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := loadConfig()
 		client, err := auth.ResolveClient(cfg)
@@ -25,23 +37,53 @@ total licenses, users, products, and per-license component breakdowns
 			return
 		}
 
-		// Fetch licenses, users, products in sequence
-		licenses, errL := client.ListLicenses(map[string]string{"page[size]": "100", "page[number]": "1"})
+		// Resolve --user flag
+		userFilter, _ := cmd.Flags().GetString("user")
+		var filterUserID, filterUserEmail string
+
+		if userFilter != "" {
+			if strings.Contains(userFilter, "@") {
+				u, err := client.FindUserByEmail(userFilter)
+				if err != nil {
+					output.Error("user not found: " + err.Error())
+					return
+				}
+				filterUserID = u.ID
+				filterUserEmail = u.Email
+			} else {
+				u, err := client.GetUser(userFilter)
+				if err != nil {
+					output.Error("user not found: " + err.Error())
+					return
+				}
+				filterUserID = u.ID
+				filterUserEmail = u.Email
+			}
+		}
+
+		// Fetch licenses — scoped to user if filter provided
+		var licenseParams = map[string]string{"page[size]": "100", "page[number]": "1"}
+		if filterUserID != "" {
+			licenseParams["user"] = filterUserID
+		}
+		licenses, errL := client.ListLicenses(licenseParams)
 		if errL != nil {
 			output.Error("failed to fetch licenses: " + errL.Error())
 			return
 		}
 
-		users, errU := client.ListUsers(map[string]string{"page[size]": "100", "page[number]": "1"})
-		if errU != nil {
-			output.Error("failed to fetch users: " + errU.Error())
-			return
-		}
-
-		products, errP := client.ListProducts()
-		if errP != nil {
-			output.Error("failed to fetch products: " + errP.Error())
-			return
+		// Only fetch account-wide counts when not filtering by user
+		userCount := 0
+		productCount := 0
+		if filterUserID == "" {
+			users, errU := client.ListUsers(map[string]string{"page[size]": "100", "page[number]": "1"})
+			if errU == nil {
+				userCount = len(users)
+			}
+			products, errP := client.ListProducts()
+			if errP == nil {
+				productCount = len(products)
+			}
 		}
 
 		// Aggregate license statuses
@@ -123,9 +165,11 @@ total licenses, users, products, and per-license component breakdowns
 				}
 			}
 
-			// Resolve owner email
+			// Resolve owner email (skip if we already know from --user)
 			if lic.OwnerID != "" {
-				if u, err := client.GetUser(lic.OwnerID); err == nil {
+				if filterUserEmail != "" && lic.OwnerID == filterUserID {
+					d.OwnerEmail = filterUserEmail
+				} else if u, err := client.GetUser(lic.OwnerID); err == nil {
 					d.OwnerEmail = u.Email
 				}
 			}
@@ -133,38 +177,128 @@ total licenses, users, products, and per-license component breakdowns
 			details = append(details, d)
 		}
 
-		result := map[string]interface{}{
-			"account_id":       cfg.AccountID,
-			"base_url":         cfg.BaseURL,
-			"total_licenses":   len(licenses),
-			"total_users":      len(users),
-			"total_products":   len(products),
-			"total_machines":   totalMachines,
-			"total_components": totalComponents,
-			"license_statuses": statusCounts,
-			"licenses":         details,
+		// Parse --fields flag
+		fieldsFlag, _ := cmd.Flags().GetString("fields")
+		allFields := []string{"key", "name", "status", "days", "owner", "machines", "devices", "printers", "servers"}
+		selectedFields := allFields // default: all
+
+		if fieldsFlag != "" {
+			selectedFields = nil
+			for _, f := range strings.Split(fieldsFlag, ",") {
+				f = strings.TrimSpace(strings.ToLower(f))
+				if f != "" {
+					selectedFields = append(selectedFields, f)
+				}
+			}
 		}
+
+		// Build a set for quick lookup
+		fieldSet := map[string]bool{}
+		for _, f := range selectedFields {
+			fieldSet[f] = true
+		}
+
+		// Build JSON result — filter fields for JSON output too
+		result := map[string]interface{}{}
+
+		if filterUserID != "" {
+			result["user_id"] = filterUserID
+			result["user_email"] = filterUserEmail
+		} else {
+			result["account_id"] = cfg.AccountID
+			result["base_url"] = cfg.BaseURL
+			result["total_users"] = userCount
+			result["total_products"] = productCount
+		}
+		result["total_licenses"] = len(licenses)
+		result["total_machines"] = totalMachines
+		result["total_components"] = totalComponents
+		result["license_statuses"] = statusCounts
+
+		// Filter license detail fields for JSON
+		filteredDetails := make([]map[string]interface{}, len(details))
+		for i, d := range details {
+			m := map[string]interface{}{"id": d.ID}
+			if fieldSet["key"] {
+				m["key"] = d.Key
+			}
+			if fieldSet["name"] {
+				m["name"] = d.Name
+			}
+			if fieldSet["status"] {
+				m["status"] = d.Status
+			}
+			if fieldSet["days"] {
+				m["days_remaining"] = d.DaysRemaining
+				m["expiry"] = d.Expiry
+			}
+			if fieldSet["owner"] {
+				m["owner_email"] = d.OwnerEmail
+			}
+			if fieldSet["machines"] {
+				m["machines"] = d.Machines
+			}
+			if fieldSet["devices"] {
+				m["devices"] = d.Devices
+				m["max_devices"] = d.MaxDevices
+			}
+			if fieldSet["printers"] {
+				m["printers"] = d.Printers
+				m["max_printers"] = d.MaxPrinters
+			}
+			if fieldSet["servers"] {
+				m["servers"] = d.Servers
+				m["max_servers"] = d.MaxServers
+			}
+			filteredDetails[i] = m
+		}
+		result["licenses"] = filteredDetails
 
 		f := getFormat()
 		if f == "table" || f == "csv" {
-			headers := []string{"KEY", "NAME", "STATUS", "DAYS", "OWNER", "MACHINES", "DEVICES", "PRINTERS", "SERVERS"}
-			rows := make([][]string, len(details))
-			for i, d := range details {
-				rows[i] = []string{
-					d.Key,
-					d.Name,
-					d.Status,
-					fmt.Sprintf("%d", d.DaysRemaining),
-					d.OwnerEmail,
-					fmt.Sprintf("%d", d.Machines),
-					fmt.Sprintf("%d/%s", d.Devices, d.MaxDevices),
-					fmt.Sprintf("%d/%s", d.Printers, d.MaxPrinters),
-					fmt.Sprintf("%d/%s", d.Servers, d.MaxServers),
+			// Map field names to headers and row builders
+			type colDef struct {
+				header string
+				value  func(d licenseDetail) string
+			}
+			colMap := map[string]colDef{
+				"key":      {"KEY", func(d licenseDetail) string { return d.Key }},
+				"name":     {"NAME", func(d licenseDetail) string { return d.Name }},
+				"status":   {"STATUS", func(d licenseDetail) string { return d.Status }},
+				"days":     {"DAYS", func(d licenseDetail) string { return fmt.Sprintf("%d", d.DaysRemaining) }},
+				"owner":    {"OWNER", func(d licenseDetail) string { return d.OwnerEmail }},
+				"machines": {"MACHINES", func(d licenseDetail) string { return fmt.Sprintf("%d", d.Machines) }},
+				"devices":  {"DEVICES", func(d licenseDetail) string { return fmt.Sprintf("%d/%s", d.Devices, d.MaxDevices) }},
+				"printers": {"PRINTERS", func(d licenseDetail) string { return fmt.Sprintf("%d/%s", d.Printers, d.MaxPrinters) }},
+				"servers":  {"SERVERS", func(d licenseDetail) string { return fmt.Sprintf("%d/%s", d.Servers, d.MaxServers) }},
+			}
+
+			var headers []string
+			var builders []func(d licenseDetail) string
+			for _, field := range selectedFields {
+				if c, ok := colMap[field]; ok {
+					headers = append(headers, c.header)
+					builders = append(builders, c.value)
 				}
 			}
+
+			rows := make([][]string, len(details))
+			for i, d := range details {
+				row := make([]string, len(builders))
+				for j, fn := range builders {
+					row[j] = fn(d)
+				}
+				rows[i] = row
+			}
+
 			// Print summary header
-			fmt.Printf("Account: %s | Licenses: %d | Users: %d | Products: %d | Machines: %d | Components: %d\n\n",
-				cfg.AccountID, len(licenses), len(users), len(products), totalMachines, totalComponents)
+			if filterUserID != "" {
+				fmt.Printf("User: %s | Licenses: %d | Machines: %d | Components: %d\n\n",
+					filterUserEmail, len(licenses), totalMachines, totalComponents)
+			} else {
+				fmt.Printf("Account: %s | Licenses: %d | Users: %d | Products: %d | Machines: %d | Components: %d\n\n",
+					cfg.AccountID, len(licenses), userCount, productCount, totalMachines, totalComponents)
+			}
 			output.FormatTable(f, headers, rows)
 		} else {
 			output.Success(result)
@@ -173,5 +307,7 @@ total licenses, users, products, and per-license component breakdowns
 }
 
 func init() {
+	statusCmd.Flags().String("user", "", "Filter by user ID or email")
+	statusCmd.Flags().String("fields", "", "Comma-separated fields to show: key,name,status,days,owner,machines,devices,printers,servers")
 	rootCmd.AddCommand(statusCmd)
 }
